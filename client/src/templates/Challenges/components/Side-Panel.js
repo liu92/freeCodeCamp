@@ -10,6 +10,7 @@ import TestSuite from './Test-Suite';
 import { challengeTestsSelector, isChallengeCompletedSelector } from '../redux';
 import { createSelector } from 'reselect';
 import './side-panel.css';
+import { mathJaxScriptLoader } from '../../../utils/scriptLoaders';
 
 const mapStateToProps = createSelector(
   isChallengeCompletedSelector,
@@ -20,18 +21,12 @@ const mapStateToProps = createSelector(
   })
 );
 
-const MathJax = global.MathJax;
-
 const propTypes = {
   description: PropTypes.string,
   guideUrl: PropTypes.string,
   instructions: PropTypes.string,
-  introPath: PropTypes.string,
   isChallengeCompleted: PropTypes.bool,
-  nextChallengePath: PropTypes.string,
-  prevChallengePath: PropTypes.string,
   section: PropTypes.string,
-  showPrevNextBtns: PropTypes.bool,
   showToolPanel: PropTypes.bool,
   tests: PropTypes.arrayOf(PropTypes.object),
   title: PropTypes.string,
@@ -40,7 +35,12 @@ const propTypes = {
 
 export class SidePanel extends Component {
   componentDidMount() {
+    const MathJax = global.MathJax;
+    const mathJaxMountPoint = document.querySelector('#mathjax');
+    const rosettaCodeChallenge = this.props.section === 'rosetta-code';
     if (MathJax) {
+      // Configure MathJax when it's loaded and
+      // users navigate from another challenge
       MathJax.Hub.Config({
         tex2jax: {
           inlineMath: [['$', '$'], ['\\(', '\\)']],
@@ -53,6 +53,8 @@ export class SidePanel extends Component {
         MathJax.Hub,
         document.querySelector('.rosetta-code')
       ]);
+    } else if (!mathJaxMountPoint && rosettaCodeChallenge) {
+      mathJaxScriptLoader();
     }
   }
 
@@ -61,27 +63,17 @@ export class SidePanel extends Component {
       title,
       description,
       instructions,
-      introPath,
       isChallengeCompleted,
       guideUrl,
-      nextChallengePath,
-      prevChallengePath,
       tests,
       section,
-      showPrevNextBtns,
       showToolPanel,
       videoUrl
     } = this.props;
     return (
-      <div className='instructions-panel' role='complementary'>
+      <div className='instructions-panel' role='complementary' tabIndex='-1'>
         <div>
-          <ChallengeTitle
-            introPath={introPath}
-            isCompleted={isChallengeCompleted}
-            nextChallengePath={nextChallengePath}
-            prevChallengePath={prevChallengePath}
-            showPrevNextBtns={showPrevNextBtns}
-          >
+          <ChallengeTitle isCompleted={isChallengeCompleted}>
             {title}
           </ChallengeTitle>
           <ChallengeDescription

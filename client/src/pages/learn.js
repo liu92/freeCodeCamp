@@ -1,20 +1,21 @@
 import React from 'react';
+import { Grid } from '@freecodecamp/react-bootstrap';
 import PropTypes from 'prop-types';
 import { createSelector } from 'reselect';
 import { graphql } from 'gatsby';
 import Helmet from 'react-helmet';
 import { connect } from 'react-redux';
-import { Row, Col } from '@freecodecamp/react-bootstrap';
-
-import { userFetchStateSelector, isSignedInSelector } from '../redux';
 
 import LearnLayout from '../components/layouts/Learn';
-import Login from '../components/Header/components/Login';
-import { Link, Spacer, Loader } from '../components/helpers';
+import { dasherize } from '../../../utils/slugs';
 import Map from '../components/Map';
-
-import './learn.css';
-
+import Intro from '../components/Intro';
+import {
+  userFetchStateSelector,
+  isSignedInSelector,
+  userSelector,
+  hardGoTo as navigate
+} from '../redux';
 import {
   ChallengeNode,
   AllChallengeNode,
@@ -24,9 +25,11 @@ import {
 const mapStateToProps = createSelector(
   userFetchStateSelector,
   isSignedInSelector,
-  (fetchState, isSignedIn) => ({
+  userSelector,
+  (fetchState, isSignedIn, user) => ({
     fetchState,
-    isSignedIn
+    isSignedIn,
+    user
   })
 );
 
@@ -41,28 +44,33 @@ const propTypes = {
     complete: PropTypes.bool,
     errored: PropTypes.bool
   }),
-  isSignedIn: PropTypes.bool
+  hash: PropTypes.string,
+  isSignedIn: PropTypes.bool,
+  location: PropTypes.object,
+  navigate: PropTypes.func.isRequired,
+  state: PropTypes.object,
+  user: PropTypes.shape({
+    name: PropTypes.string,
+    username: PropTypes.string
+  })
 };
 
-const BigCallToAction = isSignedIn => {
-  if (!isSignedIn) {
-    return (
-      <>
-        <Spacer size={2} />
-        <Row>
-          <Col sm={8} smOffset={2} xs={12}>
-            <Login className={'text-center'}>Sign in to save progress.</Login>
-          </Col>
-        </Row>
-      </>
-    );
-  }
-  return '';
+// choose between the state from landing page and hash from url.
+const hashValueSelector = (state, hash) => {
+  if (state && state.superBlock) return dasherize(state.superBlock);
+  else if (hash) return hash.substr(1);
+  else return null;
+};
+const mapDispatchToProps = {
+  navigate
 };
 
-const IndexPage = ({
-  fetchState: { pending, complete },
+export const LearnPage = ({
+  location: { hash = '', state = '' },
   isSignedIn,
+  navigate,
+  fetchState: { pending, complete },
+  user: { name = '', username = '' },
   data: {
     challengeNode: {
       fields: { slug }
@@ -71,50 +79,40 @@ const IndexPage = ({
     allMarkdownRemark: { edges: mdEdges }
   }
 }) => {
-  if (pending && !complete) {
-    return <Loader fullScreen={true} />;
-  }
-
+  const hashValue = hashValueSelector(state, hash);
   return (
     <LearnLayout>
-      <div className='learn-page-wrapper'>
-        <Helmet title='Learn | freeCodeCamp.org' />
-        {BigCallToAction(isSignedIn)}
-        <Spacer size={2} />
-        <h1 className='text-center'>Welcome to the freeCodeCamp curriculum</h1>
-        <p>
-          We have thousands of coding lessons to help you improve your skills.
-        </p>
-        <p>
-          You can earn each certification by completing its 5 final projects.
-        </p>
-        <p>
-          And yes - all of this is 100% free, thanks to the thousands of campers
-          who{' '}
-          <Link external={true} to='/donate'>
-            donate
-          </Link>{' '}
-          to our nonprofit.
-        </p>
-        <p>
-          If you are new to coding, we recommend you{' '}
-          <Link to={slug}>start at the beginning</Link>.
-        </p>
+      <Helmet title='Learn | freeCodeCamp.org' />
+      <Grid>
+        <Intro
+          complete={complete}
+          isSignedIn={isSignedIn}
+          name={name}
+          navigate={navigate}
+          pending={pending}
+          slug={slug}
+          username={username}
+        />
         <Map
+          hash={hashValue}
           introNodes={mdEdges.map(({ node }) => node)}
+          isSignedIn={isSignedIn}
           nodes={edges
             .map(({ node }) => node)
             .filter(({ isPrivate }) => !isPrivate)}
         />
-      </div>
+      </Grid>
     </LearnLayout>
   );
 };
 
-IndexPage.displayName = 'IndexPage';
-IndexPage.propTypes = propTypes;
+LearnPage.displayName = 'LearnPage';
+LearnPage.propTypes = propTypes;
 
-export default connect(mapStateToProps)(IndexPage);
+export default connect(
+  mapStateToProps,
+  mapDispatchToProps
+)(LearnPage);
 
 export const query = graphql`
   query FirstChallenge {

@@ -1,5 +1,5 @@
 const path = require('path');
-const { dasherize } = require('..');
+const { dasherize } = require('../../../utils/slugs');
 
 const { viewTypes } = require('../challengeTypes');
 
@@ -61,6 +61,7 @@ const getIntroIfRequired = (node, index, nodeArray) => {
 
 exports.createChallengePages = createPage => ({ node }, index, thisArray) => {
   const {
+    block,
     fields: { slug },
     required = [],
     template,
@@ -76,6 +77,7 @@ exports.createChallengePages = createPage => ({ node }, index, thisArray) => {
     component: getTemplateComponent(challengeType),
     context: {
       challengeMeta: {
+        block: block,
         introPath: getIntroIfRequired(node, index, thisArray),
         template,
         required,

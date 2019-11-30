@@ -1,6 +1,5 @@
 import React, { Fragment } from 'react';
 import PropTypes from 'prop-types';
-import { bindActionCreators } from 'redux';
 import { connect } from 'react-redux';
 import { createSelector } from 'reselect';
 import { Grid, Button } from '@freecodecamp/react-bootstrap';
@@ -11,14 +10,12 @@ import {
   signInLoadingSelector,
   userSelector,
   isSignedInSelector,
-  hardGoTo
+  hardGoTo as navigate
 } from '../redux';
 import { submitNewAbout, updateUserFlag, verifyCert } from '../redux/settings';
 import { createFlashMessage } from '../components/Flash/redux';
 
-import Spacer from '../components/helpers/Spacer';
-import Loader from '../components/helpers/Loader';
-import FullWidthRow from '../components/helpers/FullWidthRow';
+import { FullWidthRow, Link, Loader, Spacer } from '../components/helpers';
 import About from '../components/settings/About';
 import Privacy from '../components/settings/Privacy';
 import Email from '../components/settings/Email';
@@ -27,10 +24,10 @@ import Portfolio from '../components/settings/Portfolio';
 import Honesty from '../components/settings/Honesty';
 import Certification from '../components/settings/Certification';
 import DangerZone from '../components/settings/DangerZone';
+import SectionHeader from '../components/settings/SectionHeader.js';
 
 const propTypes = {
   createFlashMessage: PropTypes.func.isRequired,
-  hardGoTo: PropTypes.func.isRequired,
   isSignedIn: PropTypes.bool.isRequired,
   navigate: PropTypes.func.isRequired,
   showLoading: PropTypes.bool.isRequired,
@@ -58,6 +55,7 @@ const propTypes = {
     isApisMicroservicesCert: PropTypes.bool,
     isBackEndCert: PropTypes.bool,
     isDataVisCert: PropTypes.bool,
+    isDonating: PropTypes.bool,
     isEmailVerified: PropTypes.bool,
     isFrontEndCert: PropTypes.bool,
     isFrontEndLibsCert: PropTypes.bool,
@@ -100,38 +98,33 @@ const mapStateToProps = createSelector(
   })
 );
 
-const mapDispatchToProps = dispatch =>
-  bindActionCreators(
-    {
-      createFlashMessage,
-      hardGoTo,
-      navigate: location => dispatch(hardGoTo(location)),
-      submitNewAbout,
-      toggleNightMode: theme => updateUserFlag({ theme }),
-      updateInternetSettings: updateUserFlag,
-      updateIsHonest: updateUserFlag,
-      updatePortfolio: updateUserFlag,
-      updateQuincyEmail: sendQuincyEmail => updateUserFlag({ sendQuincyEmail }),
-      verifyCert
-    },
-    dispatch
-  );
+const mapDispatchToProps = {
+  createFlashMessage,
+  navigate,
+  submitNewAbout,
+  toggleNightMode: theme => updateUserFlag({ theme }),
+  updateInternetSettings: updateUserFlag,
+  updateIsHonest: updateUserFlag,
+  updatePortfolio: updateUserFlag,
+  updateQuincyEmail: sendQuincyEmail => updateUserFlag({ sendQuincyEmail }),
+  verifyCert
+};
 
-const createHandleSignoutClick = hardGoTo => e => {
+const createHandleSignoutClick = navigate => e => {
   e.preventDefault();
-  return hardGoTo(`${apiLocation}/signout`);
+  return navigate(`${apiLocation}/signout`);
 };
 
 export function ShowSettings(props) {
   const {
     createFlashMessage,
-    hardGoTo,
     isSignedIn,
     submitNewAbout,
     toggleNightMode,
     user: {
       completedChallenges,
       email,
+      isDonating,
       is2018DataVisCert,
       isApisMicroservicesCert,
       isJsAlgoDataStructCert,
@@ -171,41 +164,39 @@ export function ShowSettings(props) {
     return <Loader fullScreen={true} />;
   }
 
-  if (!showLoading && !isSignedIn) {
-    return navigate(`${apiLocation}/signin`);
+  if (!isSignedIn) {
+    navigate(`${apiLocation}/signin?returnTo=settings`);
+    return <Loader fullScreen={true} />;
   }
 
   return (
     <Fragment>
-      <Helmet>
-        <title>Settings | freeCodeCamp.org</title>
-      </Helmet>
+      <Helmet title='Settings | freeCodeCamp.org'></Helmet>
       <Grid>
         <main>
           <Spacer size={2} />
-          <FullWidthRow>
-            <Button
-              block={true}
-              bsSize='lg'
-              bsStyle='primary'
-              className='btn-invert'
-              href={`/${username}`}
+          <FullWidthRow className='button-group'>
+            <Link
+              className='btn-invert btn btn-lg btn-primary btn-block'
+              to={`/${username}`}
             >
               Show me my public portfolio
-            </Button>
+            </Link>
             <Button
               block={true}
               bsSize='lg'
               bsStyle='primary'
               className='btn-invert'
               href={'/signout'}
-              onClick={createHandleSignoutClick(hardGoTo)}
+              onClick={createHandleSignoutClick(navigate)}
             >
               Sign me out of freeCodeCamp
             </Button>
           </FullWidthRow>
           <Spacer />
-          <h1 className='text-center'>{`Account Settings for ${username}`}</h1>
+          <h1 className='text-center' style={{ overflowWrap: 'break-word' }}>
+            {`Account Settings for ${username}`}
+          </h1>
           <About
             about={about}
             currentTheme={theme}
@@ -227,6 +218,20 @@ export function ShowSettings(props) {
             updateQuincyEmail={updateQuincyEmail}
           />
           <Spacer />
+          {isDonating ? (
+            <div>
+              <SectionHeader>Donation Settings</SectionHeader>
+              <FullWidthRow className='button-group'>
+                <Link
+                  className='btn-invert btn btn-lg btn-primary btn-block'
+                  to={`/donation/settings`}
+                >
+                  Manage your existing donations
+                </Link>
+              </FullWidthRow>
+              <Spacer />
+            </div>
+          ) : null}
           <Internet
             githubProfile={githubProfile}
             linkedin={linkedin}

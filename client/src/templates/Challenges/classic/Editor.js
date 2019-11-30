@@ -1,10 +1,16 @@
 import React, { Component, Suspense } from 'react';
 import PropTypes from 'prop-types';
-import { bindActionCreators } from 'redux';
 import { connect } from 'react-redux';
 import { createSelector } from 'reselect';
 
-import { executeChallenge, updateFile } from '../redux';
+import {
+  canFocusEditorSelector,
+  executeChallenge,
+  inAccessibilityModeSelector,
+  setEditorFocusability,
+  setAccessibilityMode,
+  updateFile
+} from '../redux';
 import { userSelector, isDonationModalOpenSelector } from '../../../redux';
 import { Loader } from '../../../components/helpers';
 
@@ -12,32 +18,37 @@ const MonacoEditor = React.lazy(() => import('react-monaco-editor'));
 
 const propTypes = {
   canFocus: PropTypes.bool,
+  containerRef: PropTypes.any.isRequired,
   contents: PropTypes.string,
   dimensions: PropTypes.object,
   executeChallenge: PropTypes.func.isRequired,
   ext: PropTypes.string,
   fileKey: PropTypes.string,
+  inAccessibilityMode: PropTypes.bool.isRequired,
+  setAccessibilityMode: PropTypes.func.isRequired,
+  setEditorFocusability: PropTypes.func,
   theme: PropTypes.string,
   updateFile: PropTypes.func.isRequired
 };
 
 const mapStateToProps = createSelector(
+  canFocusEditorSelector,
+  inAccessibilityModeSelector,
   isDonationModalOpenSelector,
   userSelector,
-  (open, { theme = 'night' }) => ({
-    canFocus: !open,
+  (canFocus, accessibilityMode, open, { theme = 'default' }) => ({
+    canFocus: open ? false : canFocus,
+    inAccessibilityMode: accessibilityMode,
     theme
   })
 );
 
-const mapDispatchToProps = dispatch =>
-  bindActionCreators(
-    {
-      executeChallenge,
-      updateFile
-    },
-    dispatch
-  );
+const mapDispatchToProps = {
+  setEditorFocusability,
+  setAccessibilityMode,
+  executeChallenge,
+  updateFile
+};
 
 const modeMap = {
   css: 'css',
@@ -101,6 +112,7 @@ class Editor extends Component {
     };
 
     this._editor = null;
+    this.focusOnEditor = this.focusOnEditor.bind(this);
   }
 
   editorWillMount = monaco => {
@@ -109,7 +121,14 @@ class Editor extends Component {
 
   editorDidMount = (editor, monaco) => {
     this._editor = editor;
-    if (this.props.canFocus) this._editor.focus();
+    this._editor.updateOptions({
+      accessibilitySupport: this.props.inAccessibilityMode ? 'on' : 'auto'
+    });
+    // Users who are using screen readers should not have to move focus from
+    // the editor to the description every time they open a challenge.
+    if (this.props.canFocus && !this.props.inAccessibilityMode) {
+      this._editor.focus();
+    } else this.focusOnHotkeys();
     this._editor.addAction({
       id: 'execute-challenge',
       label: 'Run tests',
@@ -119,7 +138,53 @@ class Editor extends Component {
       ],
       run: this.props.executeChallenge
     });
+    this._editor.addAction({
+      id: 'leave-editor',
+      label: 'Leave editor',
+      keybindings: [monaco.KeyCode.Escape],
+      run: () => {
+        this.focusOnHotkeys();
+        this.props.setEditorFocusability(false);
+      }
+    });
+    this._editor.addAction({
+      id: 'toggle-accessibility',
+      label: 'Toggle Accessibility Mode',
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.F1],
+      run: () => {
+        const currentAccessibility = this.props.inAccessibilityMode;
+        // The store needs to be updated first, as onDidChangeConfiguration is
+        // called before updateOptions returns
+        this.props.setAccessibilityMode(!currentAccessibility);
+        this._editor.updateOptions({
+          accessibilitySupport: currentAccessibility ? 'auto' : 'on'
+        });
+      }
+    });
+    this._editor.onDidFocusEditorWidget(() =>
+      this.props.setEditorFocusability(true)
+    );
+    // This is to persist changes caused by the accessibility tooltip.
+    // Unfortunately it relies on Monaco's implementation details
+    this._editor.onDidChangeConfiguration(() => {
+      if (
+        this._editor.getConfiguration().accessibilitySupport === 2 &&
+        !this.props.inAccessibilityMode
+      ) {
+        this.props.setAccessibilityMode(true);
+      }
+    });
   };
+
+  focusOnHotkeys() {
+    if (this.props.containerRef.current) {
+      this.props.containerRef.current.focus();
+    }
+  }
+
+  focusOnEditor() {
+    this._editor.focus();
+  }
 
   onChange = editorValue => {
     const { updateFile, fileKey } = this.props;
@@ -155,7 +220,11 @@ class Editor extends Component {
 Editor.displayName = 'Editor';
 Editor.propTypes = propTypes;
 
+// NOTE: withRef gets replaced by forwardRef in react-redux 6,
+// https://github.com/reduxjs/react-redux/releases/tag/v6.0.0
 export default connect(
   mapStateToProps,
-  mapDispatchToProps
+  mapDispatchToProps,
+  null,
+  { withRef: true }
 )(Editor);
